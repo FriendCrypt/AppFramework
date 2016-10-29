@@ -39,12 +39,33 @@ class App:
        self.init_data_dir()
        self.init_logger()
        self.load_config()
+       self.exc_count = 0
+       self.running = True
+       self.run_mainloop()
+   def run_mainloop(self):
+       """ Don't override this
+       """
+       while self.running:
+          try:
+             self.iter_loop()
+          except Exception,e:
+             logging.exception('Error in application main loop')
+             self.exc_count += 1
+             if self.exc_count >= 10:
+                logging.critical('Too many exceptions')
+                self.running = False
+   def iter_loop(self):
+       """ Override this to do stuff
+       """
+       raise Exception('test')
    def init_cmdline(self):
        """ Don't override this
        """
        parser = argparse.ArgumentParser(description=self.app_desc)
-       parser.add_argument("-d", "--debug", help="show debug information on the console")
-       args = parser.parse_args()
+       parser.add_argument("-c", "--config", help="specify which config file to use")
+       parser.add_argument("-D", "--debug", help="show debug information on the console",action="store_true")
+       parser.add_argument("-d", "--datadir", help="specify the path to the data directory")
+       self.args = parser.parse_args()
    def default_logging_config(self):
        """ Override this if you want a different default logging config
        """
@@ -68,7 +89,10 @@ class App:
        retval = defaults.fillin_dict(defaults.config_settings,self)
        return retval
    def init_data_dir(self):
-       self.data_dir = self.default_datadir_path()
+       if self.args.datadir != None:
+          self.data_dir = self.args.datadir
+       else:
+          self.data_dir = self.default_datadir_path()
        if not os.path.exists(self.data_dir):
           print 'Could not find data directory, recreating...'
           os.mkdir(self.data_dir)
@@ -83,9 +107,12 @@ class App:
        logging.getLogger('').addHandler(self.console_log)
        logging.info('Logging system started')
    def load_config(self):
-       self.config_file = self.default_config_file()
+       if self.args.config != None:
+          self.config_file = self.args.config
+       else:
+          self.config_file = self.default_config_file()
        if not os.path.exists(self.config_file):
-          logging.info('No config file found, writing a default')
+          logging.info('Config file %s found, writing a default' % self.config_file)
           self.config_settings = self.default_config_settings()
           json_data = json.dumps(self.config_settings,sort_keys=True,indent=4)
           fd = open(self.config_file,'w')
